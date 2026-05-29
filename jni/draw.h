@@ -8,6 +8,10 @@
 using namespace ImGui;
 using namespace std;
 
+// Forward declarations for logging system (used by AutoPlay via DrawESP)
+static void PushLog(const char* fmt, ...);
+static void PushLogColored(const ImVec4& color, const char* fmt, ...);
+
 #include "include/includes.h"
 
 #include "8bp.h"
@@ -174,6 +178,119 @@ static bool ToggleSwitch(const char* label, bool* v) {
     return pressed;
 }
 
+// ─── Logging System ──────────────────────────────────────────
+struct LogEntry {
+    std::string message;
+    double timestamp = 0.0;
+    ImVec4 color = TXT_MAIN;
+};
+
+static const int MAX_LOG_ENTRIES = 100;
+static LogEntry g_logBuffer[MAX_LOG_ENTRIES];
+static int g_logHead = 0;
+static int g_logCount = 0;
+static bool g_logPanelOpen = true;
+
+static void PushLog(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    char buf[256];
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+
+    LogEntry& e = g_logBuffer[g_logHead];
+    e.message = std::string(buf);
+    e.timestamp = ImGui::GetTime();
+    e.color = TXT_MAIN;
+
+    g_logHead = (g_logHead + 1) % MAX_LOG_ENTRIES;
+    if (g_logCount < MAX_LOG_ENTRIES) g_logCount++;
+}
+
+static void PushLogColored(const ImVec4& color, const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    char buf[256];
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+
+    LogEntry& e = g_logBuffer[g_logHead];
+    e.message = std::string(buf);
+    e.timestamp = ImGui::GetTime();
+    e.color = color;
+
+    g_logHead = (g_logHead + 1) % MAX_LOG_ENTRIES;
+    if (g_logCount < MAX_LOG_ENTRIES) g_logCount++;
+}
+
+static void DrawLogPanel(ImGuiIO& io) {
+    if (!g_logPanelOpen) return;
+
+    float panelW = rclamp(rw(0.32f), 260.0f, 420.0f);
+    float panelH = rclamp(rh(0.22f), 120.0f, 220.0f);
+
+    SetNextWindowPos(ImVec2(10.0f, io.DisplaySize.y - panelH - 10.0f), ImGuiCond_Always);
+    SetNextWindowSize(ImVec2(panelW, panelH), ImGuiCond_Always);
+
+    PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.75f));
+    PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 6.0f));
+    PushStyleVar(ImGuiStyleVar_Alpha, 0.85f);
+
+    if (Begin(O("##LogPanel"), &g_logPanelOpen,
+        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing))
+    {
+        ImDrawList* dl = GetWindowDrawList();
+        ImVec2 winPos = GetWindowPos();
+        ImVec2 winSize = GetWindowSize();
+
+        // Header
+        float headerH = rclamp(rh(0.025f), 18.0f, 28.0f);
+        dl->AddRectFilled(winPos, ImVec2(winPos.x + winSize.x, winPos.y + headerH), Col32(ACCENT), 10.0f, ImDrawFlags_RoundCornersTop);
+        dl->AddText(ImVec2(winPos.x + 8.0f, winPos.y + (headerH - ImGui::GetFontSize()) * 0.5f),
+                    IM_COL32(255, 255, 255, 220), O("Activity Log"));
+
+        // Clear button (X)
+        float btnSize = headerH - 4.0f;
+        ImVec2 btnMin(winPos.x + winSize.x - btnSize - 4.0f, winPos.y + 2.0f);
+        if (ImGui::InvisibleButton(O("##ClearLog"), ImVec2(btnSize, btnSize))) {
+            g_logHead = 0;
+            g_logCount = 0;
+        }
+        bool hovClear = ImGui::IsItemHovered();
+        dl->AddText(ImVec2(btnMin.x + 2.0f, btnMin.y + 1.0f),
+                    hovClear ? IM_COL32(255, 255, 255, 255) : IM_COL32(255, 255, 255, 160), "X");
+
+        SetCursorPosY(headerH + 4.0f);
+
+        // Scrollable log area
+        float logAreaH = winSize.y - headerH - 6.0f;
+        BeginChild(O("##LogScroll"), ImVec2(winSize.x - 4.0f, logAreaH), false);
+
+        float fontScale = rclamp(rh(0.016f), 0.7f, 0.95f);
+        SetWindowFontScale(fontScale);
+
+        int startIdx = (g_logHead - g_logCount + MAX_LOG_ENTRIES) % MAX_LOG_ENTRIES;
+        for (int i = 0; i < g_logCount; i++) {
+            int idx = (startIdx + i) % MAX_LOG_ENTRIES;
+            const LogEntry& e = g_logBuffer[idx];
+            float msgAlpha = 1.0f - (float)i / (float)g_logCount * 0.3f;
+            ImVec4 col = e.color;
+            col.w *= msgAlpha;
+            TextColored(col, "%s", e.message.c_str());
+        }
+
+        SetWindowFontScale(1.0f);
+        EndChild();
+    }
+    End();
+
+    PopStyleVar(3);
+    PopStyleColor();
+}
+
 INLINE void DrawAutoQueue() {
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         static std::chrono::steady_clock::time_point last_call_time;
@@ -306,7 +423,15 @@ INLINE void DrawESP(ImDrawList* draw) {
         GameStateManager gameStateManager = sharedGameManager.mStateManager;
         if (!gameStateManager) return;
 
-        if (persistent_bool[O("bAutoPlay")]) AutoPlay::Update();
+        if (persistent_bool[O("bAutoPlay")]) {
+            static bool wasScanning = false;
+            AutoPlay::Update();
+            if (AutoPlay::state != AutoPlay::IDLE && !wasScanning)
+                PushLog(ICON_FA_CROSSHAIRS " Auto Play: calculating shot...");
+            if (AutoPlay::state == AutoPlay::IDLE && wasScanning)
+                PushLogColored(SUCCESS, ICON_FA_CIRCLE_CHECK " Auto Play: shot executed");
+            wasScanning = (AutoPlay::state != AutoPlay::IDLE);
+        }
 
         auto stateId = gameStateManager.getCurrentStateId();
         if (stateId == 4) gPrediction->determineShotResult(false);
@@ -372,6 +497,9 @@ static void DrawSplashScreen(ImGuiIO& io) {
 
     float elapsed = t - g_splash.startTime;
     if (elapsed >= SPLASH_DURATION) {
+        if (!g_splash.done) {
+            PushLogColored(SUCCESS, ICON_FA_CIRCLE_CHECK " Engine loaded successfully");
+        }
         g_splash.done = true;
         return;
     }
@@ -394,10 +522,10 @@ static void DrawSplashScreen(ImGuiIO& io) {
 
     ImDrawList* dl = GetWindowDrawList();
 
-    // Background gradient (#1a0533 → #0A0C14 → #0D1A2E)
-    ImU32 bg1 = IM_COL32(26, 5, 51, 255);
-    ImU32 bg2 = IM_COL32(10, 12, 20, 255);
-    ImU32 bg3 = IM_COL32(13, 26, 46, 255);
+    // Background gradient (black → very dark → orange-tinted)
+    ImU32 bg1 = IM_COL32(0, 0, 0, 255);
+    ImU32 bg2 = IM_COL32(5, 3, 0, 255);
+    ImU32 bg3 = IM_COL32(10, 6, 0, 255);
     dl->AddRectFilledMultiColor(ImVec2(0,0), ImVec2(dsW, dsH*0.5f), bg1, bg1, bg2, bg2);
     dl->AddRectFilledMultiColor(ImVec2(0, dsH*0.5f), ImVec2(dsW, dsH), bg2, bg2, bg3, bg3);
 
@@ -406,12 +534,12 @@ static void DrawSplashScreen(ImGuiIO& io) {
     float glowR = dsW * 0.25f;
     for (int i = 5; i >= 0; i--) {
         float r = glowR * (1.0f + i * 0.08f);
-        int a = (int)(12.0f * pulse * (1.0f - i * 0.15f));
-        dl->AddCircleFilled(center, r, IM_COL32(168, 85, 247, a), 64);
+        int a = (int)(20.0f * pulse * (1.0f - i * 0.15f));
+        dl->AddCircleFilled(center, r, IM_COL32(255, 107, 0, a), 64);
     }
 
     // Grid subtle
-    ImU32 gridCol = IM_COL32(168, 85, 247, 6);
+    ImU32 gridCol = IM_COL32(255, 107, 0, 6);
     for (int x = 0; x < dsW; x += 40) {
         dl->AddLine(ImVec2(x, 0), ImVec2(x + dsH*0.3f, dsH), gridCol, 0.5f);
     }
@@ -427,12 +555,12 @@ static void DrawSplashScreen(ImGuiIO& io) {
     float logoY = center.y - logoSizeV.y * 0.5f;
 
     // Glow shadow layers for logo
-    ImU32 glowCol = IM_COL32(168, 85, 247, (int)(80.0f * pulse));
+    ImU32 glowCol = IM_COL32(255, 107, 0, (int)(100.0f * pulse));
     for (int i = 3; i >= 0; i--) {
         float offset = (i + 1) * 3.0f;
         dl->AddText(ImVec2(logoX + offset, logoY + offset), glowCol, logoText);
     }
-    dl->AddText(ImVec2(logoX, logoY), IM_COL32(241, 245, 249, 255), logoText);
+    dl->AddText(ImVec2(logoX, logoY), IM_COL32(245, 245, 245, 255), logoText);
 
     SetWindowFontScale(1.0f);
 
@@ -460,8 +588,8 @@ static void DrawSplashScreen(ImGuiIO& io) {
 
         float progress = (float)i / 11.0f;
         ImVec4 dotCol = LerpCol(
-            ImVec4(0.231f, 0.510f, 0.965f, a),  // #3B82F6 blue
-            ImVec4(0.659f, 0.333f, 0.969f, a),  // #A855F7 purple
+            ImVec4(1.000f, 0.420f, 0.000f, a),  // #FF6B00 orange
+            ImVec4(1.000f, 0.600f, 0.200f, a),  // #FF9933 light orange
             progress
         );
 
@@ -479,18 +607,18 @@ static void DrawSplashScreen(ImGuiIO& io) {
     float pbY = spCY + spR + rh(0.03f);
 
     // Track
-    dl->AddRectFilled(ImVec2(pbX, pbY), ImVec2(pbX + pbW, pbY + pbH), IM_COL32(30, 41, 59, 255), pbH * 0.5f);
+    dl->AddRectFilled(ImVec2(pbX, pbY), ImVec2(pbX + pbW, pbY + pbH), IM_COL32(20, 15, 10, 255), pbH * 0.5f);
 
     // Fill
     float fillW = pbW * easeProgress;
     if (fillW > 2.0f) {
-        ImU32 fill1 = IM_COL32(168, 85, 247, 255);  // #A855F7
-        ImU32 fill2 = IM_COL32(59, 130, 246, 255);  // #3B82F6
+        ImU32 fill1 = IM_COL32(255, 107, 0, 255);   // #FF6B00
+        ImU32 fill2 = IM_COL32(255, 140, 50, 255);  // #FF8C32
         dl->AddRectFilledMultiColor(ImVec2(pbX, pbY), ImVec2(pbX + fillW, pbY + pbH), fill1, fill2, fill2, fill1);
 
         // Glow tip
         float tipGlow = rh(0.015f);
-        ImU32 tipCol = IM_COL32(168, 85, 247, (int)(60.0f * pulse));
+        ImU32 tipCol = IM_COL32(255, 107, 0, (int)(80.0f * pulse));
         dl->AddCircleFilled(ImVec2(pbX + fillW, pbY + pbH * 0.5f), tipGlow, tipCol, 16);
     }
 
@@ -595,10 +723,25 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImGuiIO& io)
         case 0: {
             Dummy(ImVec2(0, rh(0.01f)));
             if (BeginTable(O("##ESPTbl"), 2, ImGuiTableFlags_SizingStretchSame)) {
-                TableNextColumn(); need_save |= ToggleSwitch(O("Draw Prediction Lines"), &persistent_bool[O("bESP_DrawPredictionLine")]);
-                TableNextColumn(); need_save |= ToggleSwitch(O("Draw Pockets"), &persistent_bool[O("bESP_DrawPockets")]);
+                TableNextColumn(); {
+                    bool old = persistent_bool[O("bESP_DrawPredictionLine")];
+                    need_save |= ToggleSwitch(O("Draw Prediction Lines"), &persistent_bool[O("bESP_DrawPredictionLine")]);
+                    if (old != persistent_bool[O("bESP_DrawPredictionLine")])
+                        PushLogColored(ACCENT, O("ESP: Prediction Lines %s"), persistent_bool[O("bESP_DrawPredictionLine")] ? O("ON") : O("OFF"));
+                }
+                TableNextColumn(); {
+                    bool old = persistent_bool[O("bESP_DrawPockets")];
+                    need_save |= ToggleSwitch(O("Draw Pockets"), &persistent_bool[O("bESP_DrawPockets")]);
+                    if (old != persistent_bool[O("bESP_DrawPockets")])
+                        PushLogColored(ACCENT, O("ESP: Pocket Markers %s"), persistent_bool[O("bESP_DrawPockets")] ? O("ON") : O("OFF"));
+                }
                 TableNextRow();
-                TableNextColumn(); need_save |= ToggleSwitch(O("Draw Shot State"), &persistent_bool[O("bESP_DrawPocketsShotState")]);
+                TableNextColumn(); {
+                    bool old = persistent_bool[O("bESP_DrawPocketsShotState")];
+                    need_save |= ToggleSwitch(O("Draw Shot State"), &persistent_bool[O("bESP_DrawPocketsShotState")]);
+                    if (old != persistent_bool[O("bESP_DrawPocketsShotState")])
+                        PushLogColored(ACCENT, O("ESP: Shot State %s"), persistent_bool[O("bESP_DrawPocketsShotState")] ? O("ON") : O("OFF"));
+                }
                 EndTable();
             }
             break;
@@ -607,7 +750,12 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImGuiIO& io)
         case 1: {
             Dummy(ImVec2(0, rh(0.01f)));
             if (BeginTable(O("##AutoPlayTbl"), 2, ImGuiTableFlags_SizingStretchSame)) {
-                TableNextColumn(); need_save |= ToggleSwitch(O("Enable Auto Play"), &persistent_bool[O("bAutoPlay")]);
+                TableNextColumn(); {
+                    bool old = persistent_bool[O("bAutoPlay")];
+                    need_save |= ToggleSwitch(O("Enable Auto Play"), &persistent_bool[O("bAutoPlay")]);
+                    if (old != persistent_bool[O("bAutoPlay")])
+                        PushLogColored(ACCENT, O("Auto Play %s"), persistent_bool[O("bAutoPlay")] ? O("ENABLED") : O("DISABLED"));
+                }
                 TableNextColumn();
                 float textScale = rclamp(rh(0.020f), 0.85f, 1.1f);
                 SetWindowFontScale(textScale);
@@ -622,7 +770,12 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImGuiIO& io)
         case 2: {
             Dummy(ImVec2(0, rh(0.01f)));
             if (BeginTable(O("##AutoQTbl"), 2, ImGuiTableFlags_SizingStretchSame)) {
-                TableNextColumn(); need_save |= ToggleSwitch(O("Enable Auto Queue"), &persistent_bool[O("bAutoQueue")]);
+                TableNextColumn(); {
+                    bool old = persistent_bool[O("bAutoQueue")];
+                    need_save |= ToggleSwitch(O("Enable Auto Queue"), &persistent_bool[O("bAutoQueue")]);
+                    if (old != persistent_bool[O("bAutoQueue")])
+                        PushLogColored(ACCENT, O("Auto Queue %s"), persistent_bool[O("bAutoQueue")] ? O("ENABLED") : O("DISABLED"));
+                }
 
                 TableNextColumn();
                 TextColored(TXT_MAIN, O("Mode"));
@@ -815,7 +968,14 @@ static void DrawFloatingButton(ImGuiIO& io) {
 
 static bool first_time = true;
 INLINE void DrawLogin(ImGuiIO& io) {
-    if (logged_in) return DrawMenu(io);
+    if (logged_in) {
+        static bool loginLogged = false;
+        if (!loginLogged) {
+            PushLogColored(SUCCESS, ICON_FA_CIRCLE_CHECK " Login successful");
+            loginLogged = true;
+        }
+        return DrawMenu(io);
+    }
 
     SetNextWindowPos(ImVec2(0, 0));
     SetNextWindowSize(io.DisplaySize);
@@ -976,6 +1136,15 @@ INLINE void SetupImgui() {
     if (font_cfg.SizePixels < 1.0f) font_cfg.SizePixels = baseFontSize;
     io.Fonts->AddFontDefault(&font_cfg);
 
+    {
+        ImFontConfig icon_cfg;
+        icon_cfg.MergeMode = true;
+        icon_cfg.FontDataOwnedByAtlas = false;
+        icon_cfg.GlyphOffset = ImVec2(0, 4.0f);
+        static const ImWchar icon_ranges[] = { 0xe000, 0xf8ff, 0 };
+        io.Fonts->AddFontFromMemoryTTF((void*)fa_solid_900_ttf, fa_solid_900_ttf_len, baseFontSize * 0.9f, &icon_cfg, icon_ranges);
+    }
+
     ImGui_ImplAndroid_Init();
     ImGui_ImplOpenGL3_Init(O("#version 300 es"));
 
@@ -1012,6 +1181,8 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
     } else {
         DrawLogin(io);
     }
+
+    DrawLogPanel(io);
     ImGui::EndFrame();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
