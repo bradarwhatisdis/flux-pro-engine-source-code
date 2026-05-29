@@ -58,6 +58,7 @@ jobs:
       - name: Debug sign APK
         run: |
           KEYSTORE="$HOME/.android/debug.keystore"
+          mkdir -p "$HOME/.android"
           if [ ! -f "$KEYSTORE" ]; then
             keytool -genkey -v -keystore "$KEYSTORE" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
