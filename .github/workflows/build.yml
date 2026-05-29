@@ -25,51 +25,50 @@ jobs:
           name: library.so
           path: obj/local/arm64-v8a/library.so
 
-  inject:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    steps:
       - name: Setup Java 17
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
       - name: Setup Android SDK
+        if: github.event_name == 'workflow_dispatch'
         uses: android-actions/setup-android@v3
 
       - name: Install apktool
+        if: github.event_name == 'workflow_dispatch'
         run: |
           sudo wget -q https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool -O /usr/local/bin/apktool
           sudo wget -q https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O /usr/local/bin/apktool.jar
           sudo chmod +x /usr/local/bin/apktool
 
-      - name: Download library.so
-        uses: actions/download-artifact@v4
-        with:
-          name: library.so
-
       - name: Download patched APK
+        if: github.event_name == 'workflow_dispatch'
         run: wget -q -O input.apk https://files.catbox.moe/sbxxbj.apk
 
       - name: Decompile APK
+        if: github.event_name == 'workflow_dispatch'
         run: apktool d -f -o decompiled input.apk
 
       - name: Inject library.so
+        if: github.event_name == 'workflow_dispatch'
         run: |
           mkdir -p decompiled/lib/arm64-v8a
-          cp library.so decompiled/lib/arm64-v8a/
+          cp obj/local/arm64-v8a/library.so decompiled/lib/arm64-v8a/
 
       - name: Rebuild APK
+        if: github.event_name == 'workflow_dispatch'
         run: apktool b -o unsigned.apk decompiled
 
       - name: Align APK
+        if: github.event_name == 'workflow_dispatch'
         run: |
           BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/$(ls $ANDROID_SDK_ROOT/build-tools | tail -1)"
           "$BUILD_TOOLS/zipalign" -p 4 unsigned.apk aligned.apk
 
       - name: Debug sign APK
+        if: github.event_name == 'workflow_dispatch'
         run: |
           KEYSTORE="$HOME/.android/debug.keystore"
           mkdir -p "$HOME/.android"
@@ -80,6 +79,7 @@ jobs:
           "$BUILD_TOOLS/apksigner" sign --ks "$KEYSTORE" --ks-pass pass:android --ks-key-alias androiddebugkey --out output.apk aligned.apk
 
       - name: Upload final APK
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: 8bp-mod-patched.apk
