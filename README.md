@@ -2,17 +2,15 @@
 
 Native library (`library.so`) for FluxProEngine8BP — a root-injected cheat/modification for Miniclip's 8 Ball Pool game with ESP, Auto Play, Auto Queue, Auto Aim, and Dear ImGui overlay.
 
-## Build (Native only)
-
-Hanya build `library.so`, tanpa APK. Pastikan `ANDROID_NDK_HOME` sudah diset:
+## Build
 
 ```bash
 export ANDROID_NDK_HOME=/path/to/ndk/24.0.8215888
 export PATH=$ANDROID_NDK_HOME:$PATH
-ndk-build -C app/src/main/jni
+ndk-build
 ```
 
-Output: `app/src/main/jni/obj/local/arm64-v8a/library.so`
+Output: `obj/local/arm64-v8a/library.so`
 
 ## Backup — Cleanup Files
 

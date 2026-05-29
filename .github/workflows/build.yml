@@ -19,10 +19,10 @@ jobs:
           ndk-version: r24
 
       - name: Build library.so
-        run: ndk-build -C app/src/main/jni
+        run: ndk-build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: library.so
-          path: app/src/main/jni/obj/local/arm64-v8a/library.so
+          path: obj/local/arm64-v8a/library.so
