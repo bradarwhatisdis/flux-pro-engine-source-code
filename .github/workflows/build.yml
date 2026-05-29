@@ -1,0 +1,28 @@
+name: Build library.so
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r24
+
+      - name: Build library.so
+        run: ndk-build -C app/src/main/jni
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: library.so
+          path: app/src/main/jni/obj/local/arm64-v8a/library.so
