@@ -42,34 +42,33 @@ static ImU32 Col32(const ImVec4& c) {
     );
 }
 
-// ─── GLASSMORPHISM COLOR PALETTE ─────────────────────────────
-// All values in linear 0..1 space
-// Accent: Lavender Purple (#D0BCFF)
-#define ACCENT       ImVec4(0.816f, 0.737f, 1.000f, 1.00f) // #D0BCFF
-#define ACCENT_HOVER ImVec4(0.859f, 0.800f, 1.000f, 1.00f) // #DBCCFF
-#define ACCENT_ACTIVE ImVec4(0.702f, 0.600f, 1.000f, 1.00f) // #B399FF
+// ─── ORANGE & BLACK COLOR PALETTE ─────────────────────────────
+// Accent: Vibrant Orange (#FF6B00)
+#define ACCENT       ImVec4(1.000f, 0.420f, 0.000f, 1.00f) // #FF6B00
+#define ACCENT_HOVER ImVec4(1.000f, 0.522f, 0.200f, 1.00f) // #FF8533
+#define ACCENT_ACTIVE ImVec4(0.878f, 0.376f, 0.000f, 1.00f) // #E06000
 
-#define TXT_MAIN     ImVec4(0.890f, 0.890f, 0.902f, 1.00f) // #E3E3E6
-#define TXT_MUTED    ImVec4(0.580f, 0.580f, 0.600f, 1.00f) // #949499
-#define TXT_DIM      ImVec4(0.400f, 0.400f, 0.420f, 1.00f) // #666669
+#define TXT_MAIN     ImVec4(0.950f, 0.950f, 0.960f, 1.00f) // #F2F2F5
+#define TXT_MUTED    ImVec4(0.620f, 0.620f, 0.640f, 1.00f) // #9E9EA3
+#define TXT_DIM      ImVec4(0.420f, 0.420f, 0.440f, 1.00f) // #6B6B70
 
-#define BG_WINDOW    ImVec4(0.110f, 0.110f, 0.118f, 0.68f) // #1C1C1E x 0.68
-#define BG_PANEL     ImVec4(0.145f, 0.145f, 0.157f, 0.88f) // #252528 x 0.88
-#define BG_ELEVATED  ImVec4(0.180f, 0.180f, 0.196f, 0.92f) // #2E2E32 x 0.92
+#define BG_WINDOW    ImVec4(0.000f, 0.000f, 0.000f, 0.85f) // black x 0.85
+#define BG_PANEL     ImVec4(0.050f, 0.050f, 0.050f, 0.92f) // #0D0D0D x 0.92
+#define BG_ELEVATED  ImVec4(0.090f, 0.090f, 0.090f, 0.95f) // #171717 x 0.95
 
-#define BORDER_GLASS ImVec4(1.000f, 1.000f, 1.000f, 0.10f) // white x 0.10
-#define BORDER_SOLID ImVec4(0.176f, 0.176f, 0.204f, 1.00f) // #2D2D34
+#define BORDER_GLASS ImVec4(1.000f, 1.000f, 1.000f, 0.08f) // white x 0.08
+#define BORDER_SOLID ImVec4(0.150f, 0.150f, 0.150f, 1.00f) // #262626
 
-#define FRAME_BG         ImVec4(0.090f, 0.090f, 0.110f, 1.00f) // #17171C
-#define FRAME_BG_HOVER   ImVec4(0.140f, 0.140f, 0.165f, 1.00f) // #24242A
-#define FRAME_BG_ACTIVE  ImVec4(0.180f, 0.180f, 0.210f, 1.00f) // #2E2E36
+#define FRAME_BG         ImVec4(0.000f, 0.000f, 0.000f, 0.40f) // black x 0.40
+#define FRAME_BG_HOVER   ImVec4(0.120f, 0.120f, 0.120f, 0.50f) // #1F1F1F x 0.50
+#define FRAME_BG_ACTIVE  ImVec4(0.180f, 0.180f, 0.180f, 0.60f) // #2E2E2E x 0.60
 
-#define HEADER           ImVec4(0.140f, 0.140f, 0.165f, 1.00f)
-#define HEADER_HOVER     ImVec4(0.200f, 0.200f, 0.235f, 1.00f)
-#define HEADER_ACTIVE    ImVec4(0.250f, 0.250f, 0.290f, 1.00f)
+#define HEADER           ImVec4(0.050f, 0.050f, 0.050f, 1.00f)
+#define HEADER_HOVER     ImVec4(0.100f, 0.100f, 0.100f, 1.00f)
+#define HEADER_ACTIVE    ImVec4(0.150f, 0.150f, 0.150f, 1.00f)
 
-#define SCROLL_BG     ImVec4(0.090f, 0.090f, 0.110f, 0.80f)
-#define SCROLL_GRAB   ImVec4(0.290f, 0.290f, 0.330f, 1.00f)
+#define SCROLL_BG     ImVec4(0.050f, 0.050f, 0.050f, 0.80f)
+#define SCROLL_GRAB   ImVec4(0.300f, 0.300f, 0.300f, 1.00f)
 #define SCROLL_HOVER  ACCENT
 #define SCROLL_ACTIVE ACCENT_HOVER
 
@@ -173,7 +172,7 @@ static void SetupGlassmorphismStyle() {
     g_animStates.clear();
 }
 
-// ── Modern Glassmorphism Button ──────────────────────────────
+// ── Modern Orange Button ──────────────────────────────────────
 static bool ModernButton(const char* label, const ImVec2& size = ImVec2(0, 0))
 {
     ImGui::PushID(label);
@@ -235,7 +234,7 @@ static bool ModernButton(const char* label, const ImVec2& size = ImVec2(0, 0))
     return pressed;
 }
 
-// ── Modern Glassmorphism Checkbox ────────────────────────────
+// ── Modern Orange Checkbox ────────────────────────────────────
 static bool ModernCheckbox(const char* label, bool* v)
 {
     ImGui::PushID(label);
