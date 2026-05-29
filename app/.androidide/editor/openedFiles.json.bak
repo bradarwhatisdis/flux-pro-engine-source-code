@@ -1,0 +1,20 @@
+{
+  "allFiles": [
+    {
+      "file": "/storage/emulated/0/POWER_CHEATS/app/src/main/jni/src/Server.cpp",
+      "selection": {
+        "end": {
+          "column": 1,
+          "index": 14258,
+          "line": 211
+        },
+        "start": {
+          "column": 1,
+          "index": 14258,
+          "line": 211
+        }
+      }
+    }
+  ],
+  "selectedFile": "/storage/emulated/0/POWER_CHEATS/app/src/main/jni/src/Server.cpp"
+}
