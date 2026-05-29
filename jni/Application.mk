@@ -7,4 +7,4 @@ APP_PIE := true
 APP_PLATFORM := android-21
 # C++20 সাপোর্ট নিশ্চিত করতে এবং এরর কমাতে কিছু ফ্ল্যাগ যোগ করা হয়েছে
 APP_CPPFLAGS := -std=c++20 -frtti -fexceptions -fpermissive
-APP_BUILD_SCRIPT := Android.mk
+# APP_BUILD_SCRIPT is auto-detected as jni/Android.mk by ndk-build
